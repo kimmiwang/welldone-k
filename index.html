@@ -741,7 +741,27 @@ function makeTaskRow(task, isOverdue) {
     if (task.done) {
       const inv = inventory.find(x => x.title === task.title && x.cat === task.cat && x.cycleDays > 0);
       if (inv) {
-        inv.lastDoneDate = new Date().toISOString().slice(0,10);
+        if (isOverdue) {
+          // Overdue tasks: count from today
+          inv.lastDoneDate = new Date().toISOString().slice(0,10);
+        } else {
+          // Normal tasks: count from the day slot's actual date
+          const dayMap = { mon:0, tue:1, wed:2, thu:3, fri:4, sat:5, sun:6 };
+          const baseKey = (task.day || '').replace(/_-?\d+$/, ''); // strip offset suffix
+          const dayIdx = dayMap[baseKey];
+          if (dayIdx !== undefined) {
+            // Find the Monday of the week this task belongs to
+            const offsetMatch = (task.day || '').match(/_(-?\d+)$/);
+            const wOffset = offsetMatch ? parseInt(offsetMatch[1]) : 0;
+            const now = new Date(); const wd = now.getDay();
+            const diffToMon = wd === 0 ? -6 : 1 - wd;
+            const thisMon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMon + wOffset * 7);
+            const taskDate = new Date(thisMon); taskDate.setDate(taskDate.getDate() + dayIdx);
+            inv.lastDoneDate = taskDate.toISOString().slice(0,10);
+          } else {
+            inv.lastDoneDate = new Date().toISOString().slice(0,10);
+          }
+        }
         await dbUpsertTask(inv, true);
       }
     }
