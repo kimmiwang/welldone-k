@@ -340,6 +340,14 @@
       <input class="modal-input" id="modalInput" placeholder="task name…" maxlength="40" autocomplete="off">
     </div>
     <div class="modal-cats" id="modalCats"></div>
+    <div id="modalCycleRow" style="display:none;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f5f5f7;border-radius:10px">
+        <span style="font-size:12px;color:var(--text-secondary);white-space:nowrap">cycle every</span>
+        <input type="number" id="modalCycleDays" min="0" max="365" value="0" style="width:50px;border:none;background:white;border-radius:6px;padding:4px 8px;font-size:13px;font-family:var(--font);text-align:center;outline:none">
+        <span style="font-size:12px;color:var(--text-secondary)">days</span>
+        <span style="font-size:10px;color:var(--text-tertiary)">(0 = no cycle)</span>
+      </div>
+    </div>
     <button class="modal-submit" id="modalSubmit" disabled>add task</button>
   </div>
 </div>
@@ -483,7 +491,8 @@ async function dbLoadAll() {
   tasks = []; overdueTasks = []; inventory = [];
   for (const r of rows) {
     const item = { id: r.id, title: r.title, cat: r.category, day: r.day,
-      done: r.done, overdue: r.overdue, dueDate: r.due_date, freq: r.completion_count };
+      done: r.done, overdue: r.overdue, dueDate: r.due_date, freq: r.completion_count,
+      cycleDays: r.cycle_days || 0, lastDoneDate: r.last_done_date || null };
     if (r.is_inventory) inventory.push(item);
     else if (r.overdue) overdueTasks.push(item);
     else tasks.push(item);
@@ -502,7 +511,8 @@ async function dbUpsertTask(item, isInventory) {
     id: item.id, title: item.title, category: item.cat, state: item.done ? 'completed' : (item.overdue ? 'overdue' : 'pending'),
     day: item.day || null, done: !!item.done, overdue: !!item.overdue,
     due_date: item.dueDate || null, completion_count: item.freq || 0,
-    is_inventory: !!isInventory, updated_at: new Date().toISOString()
+    is_inventory: !!isInventory, updated_at: new Date().toISOString(),
+    cycle_days: item.cycleDays || 0, last_done_date: item.lastDoneDate || null
   });
 }
 
@@ -682,10 +692,13 @@ function renderDays(containerId) {
       const dataStr = e.dataTransfer.getData('text/plain'); if (!dataStr) return;
       const data = JSON.parse(dataStr);
       if (data.source === 'inventory') {
-        // Duplicate from attic: create new task + increment freq
+        // Duplicate from attic: create new task + increment freq (lastDoneDate updated on completion)
         const inv = inventory.find(x => x.id === data.invId);
-        if (inv) { inv.freq = (inv.freq||0) + 1; await dbUpsertTask(inv, true); }
-        const newTask = { id: crypto.randomUUID(), title: data.title, cat: data.cat, day: sk, done: false };
+        if (inv) {
+          inv.freq = (inv.freq||0) + 1;
+          await dbUpsertTask(inv, true);
+        }
+        const newTask = { id: crypto.randomUUID(), title: data.title, cat: data.cat, day: sk, done: false, fromInvId: data.invId };
         tasks.push(newTask); await dbUpsertTask(newTask, false);
       } else if (data.source === 'day') {
         const t = tasks.find(x => x.id === data.id); if (t) { t.day = sk; await dbUpsertTask(t, false); }
@@ -724,6 +737,14 @@ function makeTaskRow(task, isOverdue) {
   cb.addEventListener('click', async () => {
     task.done = !task.done;
     await dbUpsertTask(task, false);
+    // When completed, update matching attic item's lastDoneDate
+    if (task.done) {
+      const inv = inventory.find(x => x.title === task.title && x.cat === task.cat && x.cycleDays > 0);
+      if (inv) {
+        inv.lastDoneDate = new Date().toISOString().slice(0,10);
+        await dbUpsertTask(inv, true);
+      }
+    }
     renderUI();
   });
   const dot = document.createElement('div'); dot.className = `cat-dot ${task.cat}`;
@@ -768,7 +789,23 @@ function renderInventory(listId, filterId) {
         renderUI();
       });
     });
-    row.innerHTML=`<div class="cat-dot ${item.cat}"></div><div class="inv-title-wrap"><div>${item.title}</div></div><span class="freq-badge">${item.freq||0}</span>`;
+    // Build countdown badge for cycle items
+    let cycleHtml = '';
+    if (item.cycleDays > 0 && item.lastDoneDate) {
+      const last = new Date(item.lastDoneDate + 'T00:00:00');
+      const next = new Date(last); next.setDate(next.getDate() + item.cycleDays);
+      const today = new Date(); today.setHours(0,0,0,0);
+      const daysLeft = Math.ceil((next - today) / 86400000);
+      if (daysLeft <= 0) {
+        cycleHtml = `<span style="font-size:9px;font-weight:600;color:var(--red);background:rgba(255,59,48,0.1);padding:1px 6px;border-radius:10px;white-space:nowrap">now!</span>`;
+      } else {
+        const urgency = daysLeft <= 3 ? 'var(--orange)' : 'var(--text-tertiary)';
+        cycleHtml = `<span style="font-size:9px;font-weight:600;color:${urgency};white-space:nowrap">${daysLeft}d</span>`;
+      }
+    } else if (item.cycleDays > 0) {
+      cycleHtml = `<span style="font-size:9px;color:var(--text-quaternary);white-space:nowrap">every ${item.cycleDays}d</span>`;
+    }
+    row.innerHTML=`<div class="cat-dot ${item.cat}"></div><div class="inv-title-wrap"><div>${item.title}</div></div>${cycleHtml}<span class="freq-badge">${item.freq||0}</span>`;
     list.appendChild(row);
     if (idx<items.length-1){const d=document.createElement('div');d.className='divider';d.style.margin='0 40px';list.appendChild(d);}
   });
@@ -784,6 +821,8 @@ function openModal(day) {
   document.getElementById('modalInput').value = '';
   document.getElementById('modalSubmit').disabled = true;
   document.getElementById('modalSubmit').textContent = 'add task';
+  document.getElementById('modalCycleRow').style.display = 'none';
+  document.getElementById('modalCycleDays').value = '0';
   updateModalCats(); updateModalDot();
   document.getElementById('modal').classList.add('show');
   setTimeout(() => document.getElementById('modalInput').focus(), 100);
@@ -803,7 +842,8 @@ document.getElementById('modalSubmit').addEventListener('click', submitModal);
 async function submitModal() {
   const val = document.getElementById('modalInput').value.trim(); if (!val) return;
   if (modalDay && modalDay.key === '__inventory__') {
-    const item = { id: crypto.randomUUID(), title: val, cat: modalCat, freq: 0 };
+    const cycleDays = parseInt(document.getElementById('modalCycleDays').value) || 0;
+    const item = { id: crypto.randomUUID(), title: val, cat: modalCat, freq: 0, cycleDays: cycleDays, lastDoneDate: null };
     inventory.push(item);
     await dbUpsertTask(item, true);
     closeModal(); renderUI(); return;
@@ -820,6 +860,8 @@ document.getElementById('fabAdd').addEventListener('click', () => {
   document.getElementById('modalDate').textContent = 'add to attic (no date)';
   document.getElementById('modalInput').value=''; document.getElementById('modalSubmit').disabled=true;
   document.getElementById('modalSubmit').textContent='add to attic';
+  document.getElementById('modalCycleRow').style.display = 'block';
+  document.getElementById('modalCycleDays').value = '0';
   updateModalCats(); updateModalDot();
   document.getElementById('modal').classList.add('show');
   setTimeout(()=>document.getElementById('modalInput').focus(),100);
