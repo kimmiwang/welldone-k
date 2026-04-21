@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="welldone-k">
 <meta name="theme-color" content="#e8eaf0">
 <link rel="manifest" href="manifest.json">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <title>welldone-k</title>
 <style>
   :root {
@@ -395,26 +396,30 @@
 </div>
 
 <script>
-// Context delete popover
+// ============================================================
+// SUPABASE + REALTIME SYNC
+// ============================================================
+const SUPA_URL = 'https://pnfqtdbsijehsknyengr.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBuZnF0ZGJzaWplaHNrbnllbmdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NDM1MTUsImV4cCI6MjA5MjMxOTUxNX0.542WwJsqciVkCYszg62E6pvcFrhB3PT4jvFTvOvlAqw';
+const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+
+// ============================================================
+// CONTEXT DELETE POPOVER
+// ============================================================
 let ctxDelCallback = null;
 const ctxEl = document.getElementById('ctxDel');
 function showCtxDel(x, y, title, onConfirm) {
   ctxDelCallback = onConfirm;
   document.getElementById('ctxDelTitle').textContent = title;
   ctxEl.style.display = 'flex';
-  // Position: clamp to viewport
-  const rect = ctxEl.getBoundingClientRect();
-  const vw = window.innerWidth, vh = window.innerHeight;
-  let left = x, top = y;
-  // Show after display so we can measure
   requestAnimationFrame(() => {
     const w = ctxEl.offsetWidth, h = ctxEl.offsetHeight;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    let left = x, top = y;
     if (left + w > vw - 8) left = vw - w - 8;
     if (top + h > vh - 8) top = vh - h - 8;
-    if (left < 8) left = 8;
-    if (top < 8) top = 8;
-    ctxEl.style.left = left + 'px';
-    ctxEl.style.top = top + 'px';
+    if (left < 8) left = 8; if (top < 8) top = 8;
+    ctxEl.style.left = left + 'px'; ctxEl.style.top = top + 'px';
   });
 }
 function hideCtxDel() { ctxEl.style.display = 'none'; ctxDelCallback = null; }
@@ -422,115 +427,172 @@ document.getElementById('ctxDelCancel').addEventListener('click', hideCtxDel);
 document.getElementById('ctxDelConfirm').addEventListener('click', () => { if (ctxDelCallback) ctxDelCallback(); hideCtxDel(); });
 document.addEventListener('click', e => { if (!ctxEl.contains(e.target)) hideCtxDel(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCtxDel(); });
+
+// ============================================================
+// DATA
+// ============================================================
 const CAT_ORDER = ['work','life','study','other'];
 const CATS = [
-  { id:'work', label:'Work', icon:'🤘🏻', color:'#007AFF' },
-  { id:'life', label:'Life', icon:'🛀🏻', color:'#34C759' },
-  { id:'study', label:'Study', icon:'📖', color:'#AF52DE' },
-  { id:'other', label:'Other', icon:'📦', color:'#8E8E93' },
+  { id:'work', label:'Work', icon:'\u{1F918}\u{1F3FB}', color:'#007AFF' },
+  { id:'life', label:'Life', icon:'\u{1F6C0}\u{1F3FB}', color:'#34C759' },
+  { id:'study', label:'Study', icon:'\u{1F4D6}', color:'#AF52DE' },
+  { id:'other', label:'Other', icon:'\u{1F4E6}', color:'#8E8E93' },
 ];
 
 let weekOffset = 0;
-let nextId = 100;
-function mkId() { return nextId++; }
+let activeCatFilter = 'all';
 
 function generateWeek(offset) {
-  // Dynamically compute this week's Monday
-  const now = new Date();
-  const day = now.getDay(); // 0=Sun, 1=Mon...
+  const now = new Date(); const day = now.getDay();
   const diffToMon = day === 0 ? -6 : 1 - day;
   const baseMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMon);
-  const monday = new Date(baseMonday);
-  monday.setDate(monday.getDate() + offset * 7);
+  const monday = new Date(baseMonday); monday.setDate(monday.getDate() + offset * 7);
   const names = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const keys = ['mon','tue','wed','thu','fri','sat','sun'];
   const todayDate = new Date();
   return Array.from({length:7}, (_,i) => {
     const d = new Date(monday); d.setDate(d.getDate() + i);
     const isToday = d.toDateString() === todayDate.toDateString();
-    return {
-      num: String(d.getDate()), name: names[i],
+    return { num: String(d.getDate()), name: names[i],
       key: keys[i] + (offset !== 0 ? '_' + offset : ''),
       realKey: offset === 0 ? keys[i] : null,
       past: d < todayDate && !isToday, today: isToday,
-      dateStr: `${d.getMonth()+1}/${d.getDate()}`, fullDate: d
-    };
+      dateStr: `${d.getMonth()+1}/${d.getDate()}`, fullDate: d };
+  });
+}
+function getWeekRange(offset) { const d = generateWeek(offset); return `${d[0].dateStr} - ${d[6].dateStr}`; }
+function storageDayKey(day) { return day.realKey || day.key; }
+function catColor(c) { return CATS.find(x=>x.id===c)?.color || '#8E8E93'; }
+
+// In-memory data (synced with Supabase)
+let tasks = [];       // day tasks (has day field)
+let overdueTasks = []; // overdue tasks
+let inventory = [];    // attic items (is_inventory=true)
+let countdown = { label: 'Vacation', targetDate: '', emoji: '\u{1F3D6}\u{FE0F}' };
+
+// ============================================================
+// SUPABASE CRUD
+// ============================================================
+async function dbLoadAll() {
+  const { data: rows } = await sb.from('tasks').select('*').order('created_at');
+  if (!rows || rows.length === 0) {
+    await seedSampleData();
+    return dbLoadAll();
+  }
+  tasks = []; overdueTasks = []; inventory = [];
+  for (const r of rows) {
+    const item = { id: r.id, title: r.title, cat: r.category, day: r.day,
+      done: r.done, overdue: r.overdue, dueDate: r.due_date, freq: r.completion_count };
+    if (r.is_inventory) inventory.push(item);
+    else if (r.overdue) overdueTasks.push(item);
+    else tasks.push(item);
+  }
+  // Load countdown
+  const { data: cd } = await sb.from('countdown').select('*').eq('id', 1).single();
+  if (cd) {
+    countdown.label = cd.label || 'Vacation';
+    countdown.targetDate = cd.target_date || '';
+    countdown.emoji = cd.emoji || '\u{1F3D6}\u{FE0F}';
+  }
+}
+
+async function dbUpsertTask(item, isInventory) {
+  await sb.from('tasks').upsert({
+    id: item.id, title: item.title, category: item.cat, state: item.done ? 'completed' : (item.overdue ? 'overdue' : 'pending'),
+    day: item.day || null, done: !!item.done, overdue: !!item.overdue,
+    due_date: item.dueDate || null, completion_count: item.freq || 0,
+    is_inventory: !!isInventory, updated_at: new Date().toISOString()
   });
 }
 
-function getWeekRange(offset) {
-  const d = generateWeek(offset);
-  return `${d[0].dateStr} - ${d[6].dateStr}`;
+async function dbDeleteTask(id) {
+  await sb.from('tasks').delete().eq('id', id);
 }
 
-function storageDayKey(day) { return day.realKey || day.key; }
-
-let tasks = [
-  { id:mkId(), title:'项目启动会', cat:'work', day:'mon', done:true },
-  { id:mkId(), title:'阅读 30 分钟', cat:'study', day:'mon', done:true },
-  { id:mkId(), title:'跑步 5 公里', cat:'life', day:'tue', done:true },
-  { id:mkId(), title:'代码审查', cat:'work', day:'tue', done:false },
-  { id:mkId(), title:'团队会议', cat:'work', day:'wed', done:true },
-  { id:mkId(), title:'LeetCode 刷题', cat:'study', day:'thu', done:true },
-  { id:mkId(), title:'买菜做饭', cat:'life', day:'thu', done:false },
-  { id:mkId(), title:'完成周报', cat:'work', day:'fri', done:false },
-  { id:mkId(), title:'阅读 30 分钟', cat:'study', day:'fri', done:false },
-  { id:mkId(), title:'跑步 5 公里', cat:'life', day:'fri', done:false },
-  { id:mkId(), title:'背单词', cat:'study', day:'sat', done:false },
-];
-
-function daysAgo(n) {
-  const d = new Date(); d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+async function dbSaveCountdown() {
+  await sb.from('countdown').upsert({
+    id: 1, label: countdown.label, target_date: countdown.targetDate, emoji: countdown.emoji
+  });
 }
 
-let overdueTasks = [
-  { id:mkId(), title:'提交方案', cat:'work', day:null, done:false, overdue:true, dueDate:daysAgo(3) },
-  { id:mkId(), title:'预约体检', cat:'life', day:null, done:false, overdue:true, dueDate:daysAgo(6) },
-];
-
-let inventory = [
-  { id:mkId(), title:'买菜做饭', cat:'life', freq:30 },
-  { id:mkId(), title:'阅读 30 分钟', cat:'study', freq:24 },
-  { id:mkId(), title:'背单词', cat:'study', freq:22 },
-  { id:mkId(), title:'团队会议', cat:'work', freq:20 },
-  { id:mkId(), title:'跑步 5 公里', cat:'life', freq:18 },
-  { id:mkId(), title:'冥想 10 分钟', cat:'life', freq:16 },
-  { id:mkId(), title:'LeetCode 刷题', cat:'study', freq:15 },
-  { id:mkId(), title:'健身', cat:'life', freq:14 },
-  { id:mkId(), title:'完成周报', cat:'work', freq:12 },
-  { id:mkId(), title:'代码审查', cat:'work', freq:10 },
-];
-
-let activeCatFilter = 'all';
-function daysLater(n) {
-  const d = new Date(); d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+async function seedSampleData() {
+  const daysAgo = n => { const d = new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); };
+  const daysLater = n => { const d = new Date(); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
+  const samples = [
+    { title:'项目启动会', category:'work', day:'mon', done:true, completion_count:5 },
+    { title:'阅读 30 分钟', category:'study', day:'mon', done:true, completion_count:24 },
+    { title:'跑步 5 公里', category:'life', day:'tue', done:true, completion_count:18 },
+    { title:'代码审查', category:'work', day:'tue', done:false, completion_count:10 },
+    { title:'团队会议', category:'work', day:'wed', done:true, completion_count:20 },
+    { title:'LeetCode 刷题', category:'study', day:'thu', done:true, completion_count:15 },
+    { title:'买菜做饭', category:'life', day:'thu', done:false, completion_count:30 },
+    { title:'完成周报', category:'work', day:'fri', done:false, completion_count:12 },
+    { title:'阅读 30 分钟', category:'study', day:'fri', done:false, completion_count:24 },
+    { title:'跑步 5 公里', category:'life', day:'fri', done:false, completion_count:18 },
+    { title:'背单词', category:'study', day:'sat', done:false, completion_count:22 },
+    { title:'提交方案', category:'work', day:null, done:false, overdue:true, due_date:daysAgo(3), completion_count:3 },
+    { title:'预约体检', category:'life', day:null, done:false, overdue:true, due_date:daysAgo(6), completion_count:1 },
+    // Inventory
+    { title:'买菜做饭', category:'life', is_inventory:true, completion_count:30 },
+    { title:'阅读 30 分钟', category:'study', is_inventory:true, completion_count:24 },
+    { title:'背单词', category:'study', is_inventory:true, completion_count:22 },
+    { title:'团队会议', category:'work', is_inventory:true, completion_count:20 },
+    { title:'跑步 5 公里', category:'life', is_inventory:true, completion_count:18 },
+    { title:'冥想 10 分钟', category:'life', is_inventory:true, completion_count:16 },
+    { title:'LeetCode 刷题', category:'study', is_inventory:true, completion_count:15 },
+    { title:'健身', category:'life', is_inventory:true, completion_count:14 },
+    { title:'完成周报', category:'work', is_inventory:true, completion_count:12 },
+    { title:'代码审查', category:'work', is_inventory:true, completion_count:10 },
+  ];
+  const rows = samples.map(s => ({
+    title: s.title, category: s.category, day: s.day||null, done: !!s.done,
+    overdue: !!s.overdue, due_date: s.due_date||null, completion_count: s.completion_count||0,
+    is_inventory: !!s.is_inventory, state: s.done?'completed':(s.overdue?'overdue':'pending')
+  }));
+  await sb.from('tasks').insert(rows);
+  await sb.from('countdown').upsert({ id:1, label:'Vacation', target_date:daysLater(11), emoji:'\u{1F3D6}\u{FE0F}' });
 }
-let countdown = { label: 'Vacation', targetDate: daysLater(11), emoji: '🏖️' };
 
+// ============================================================
+// REALTIME SUBSCRIPTION
+// ============================================================
+function subscribeRealtime() {
+  sb.channel('tasks-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+      dbLoadAll().then(() => renderUI());
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'countdown' }, () => {
+      dbLoadAll().then(() => renderUI());
+    })
+    .subscribe();
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
 function tasksForDay(dayKey) {
   return tasks.filter(t => t.day === dayKey).sort((a,b) => CAT_ORDER.indexOf(a.cat) - CAT_ORDER.indexOf(b.cat));
 }
-function catColor(c) { return CATS.find(x=>x.id===c)?.color || '#8E8E93'; }
 
-// Progress ring: counts tasks for the CURRENTLY DISPLAYED week
+// ============================================================
+// PROGRESS RING
+// ============================================================
 function updateProgress() {
   const days = generateWeek(weekOffset);
   const dayKeys = days.map(d => storageDayKey(d));
   const weekTasks = tasks.filter(t => dayKeys.includes(t.day));
-  const total = weekTasks.length;
-  const done = weekTasks.filter(t => t.done).length;
+  const total = weekTasks.length, done = weekTasks.filter(t => t.done).length;
   const circ = 2 * Math.PI * 7;
-  const offset = total > 0 ? circ * (1 - done / total) : circ;
+  const off = total > 0 ? circ * (1 - done / total) : circ;
   document.querySelectorAll('.progress-ring-fg').forEach(el => {
-    el.setAttribute('stroke-dashoffset', offset.toFixed(2));
+    el.setAttribute('stroke-dashoffset', off.toFixed(2));
     el.style.stroke = done >= total && total > 0 ? '#34C759' : '#007AFF';
   });
   document.querySelectorAll('.progress-text').forEach(el => el.textContent = `${done}/${total}`);
 }
 
 function updateCountdown() {
+  if (!countdown.targetDate) return;
   const target = new Date(countdown.targetDate + 'T00:00:00');
   const today = new Date();
   const diff = Math.ceil((target - today) / 86400000);
@@ -552,86 +614,94 @@ document.getElementById('countdownMain').addEventListener('click', () => {
 });
 document.getElementById('cdModalClose').addEventListener('click', () => document.getElementById('cdModal').classList.remove('show'));
 document.getElementById('cdModal').addEventListener('click', e => { if (e.target.id === 'cdModal') document.getElementById('cdModal').classList.remove('show'); });
-document.getElementById('cdSave').addEventListener('click', () => {
+document.getElementById('cdSave').addEventListener('click', async () => {
   const l = document.getElementById('cdLabelInput').value.trim();
   const d = document.getElementById('cdDateInput').value;
   if (l) countdown.label = l; if (d) countdown.targetDate = d;
   document.getElementById('cdModal').classList.remove('show');
+  await dbSaveCountdown();
   updateCountdown();
 });
 
-// Render backlog into a fixed container (always visible regardless of week)
+// ============================================================
+// RENDER BACKLOG
+// ============================================================
 function renderBacklog(containerId) {
-  const el = document.getElementById(containerId);
-  el.innerHTML = '';
+  const el = document.getElementById(containerId); el.innerHTML = '';
   const active = overdueTasks.filter(t => !t.done);
   if (active.length === 0) return;
-  const bl = document.createElement('div');
-  bl.className = 'backlog';
-  bl.innerHTML = `<div class="backlog-header"><span>⏳</span><span>overdue</span><span class="backlog-count">${active.length}</span></div><div style="margin-top:6px" class="backlog-tasks"></div>`;
+  const bl = document.createElement('div'); bl.className = 'backlog';
+  bl.innerHTML = `<div class="backlog-header"><span>\u23F3</span><span>overdue</span><span class="backlog-count">${active.length}</span></div><div style="margin-top:6px" class="backlog-tasks"></div>`;
   const bt = bl.querySelector('.backlog-tasks');
   active.sort((a,b) => CAT_ORDER.indexOf(a.cat) - CAT_ORDER.indexOf(b.cat)).forEach(t => bt.appendChild(makeTaskRow(t, true)));
   el.appendChild(bl);
-  const sep = document.createElement('div');
-  sep.style.cssText = 'height:0.5px;background:var(--separator);margin:0 16px';
+  const sep = document.createElement('div'); sep.style.cssText = 'height:0.5px;background:var(--separator);margin:0 16px';
   el.appendChild(sep);
 }
 
-// Render week nav into a fixed container
+// ============================================================
+// RENDER WEEK NAV
+// ============================================================
 function renderWeekNav(containerId) {
-  const el = document.getElementById(containerId);
-  el.innerHTML = '';
-  const prevBtn = document.createElement('button');
-  prevBtn.textContent = '← prev'; prevBtn.addEventListener('click', () => { weekOffset--; renderAll(); });
-  const todayBtn = document.createElement('button');
-  todayBtn.textContent = 'today'; todayBtn.className = 'today-btn' + (weekOffset === 0 ? ' dim' : '');
-  todayBtn.addEventListener('click', () => { if (weekOffset !== 0) { weekOffset = 0; renderAll(); }});
-  const nextBtn = document.createElement('button');
-  nextBtn.textContent = 'next →'; nextBtn.addEventListener('click', () => { weekOffset++; renderAll(); });
+  const el = document.getElementById(containerId); el.innerHTML = '';
+  const prevBtn = document.createElement('button'); prevBtn.textContent = '\u2190 prev';
+  prevBtn.addEventListener('click', () => { weekOffset--; renderUI(); });
+  const todayBtn = document.createElement('button'); todayBtn.textContent = 'today';
+  todayBtn.className = 'today-btn' + (weekOffset === 0 ? ' dim' : '');
+  todayBtn.addEventListener('click', () => { if (weekOffset !== 0) { weekOffset = 0; renderUI(); }});
+  const nextBtn = document.createElement('button'); nextBtn.textContent = 'next \u2192';
+  nextBtn.addEventListener('click', () => { weekOffset++; renderUI(); });
   el.appendChild(prevBtn); el.appendChild(todayBtn); el.appendChild(nextBtn);
 }
 
-// Render days only (no backlog, no nav)
+// ============================================================
+// RENDER DAYS
+// ============================================================
 function renderDays(containerId) {
-  const container = document.getElementById(containerId);
-  container.innerHTML = '';
+  const container = document.getElementById(containerId); container.innerHTML = '';
   const DAYS = generateWeek(weekOffset);
-
   DAYS.forEach((day, i) => {
     const sk = storageDayKey(day);
     const slot = document.createElement('div');
     slot.className = 'day-slot' + (day.today ? ' today' : '');
     const dayTasks = tasksForDay(sk);
     const doneCount = dayTasks.filter(t => t.done).length;
-
-    const header = document.createElement('div');
-    header.className = 'day-header';
+    const header = document.createElement('div'); header.className = 'day-header';
     header.innerHTML = `<div class="day-number ${day.today?'today-circle':(day.past?'past':'')}">${day.num}</div><span class="day-name ${day.today?'today-label':''}">${day.name}</span>${dayTasks.length?`<span class="day-count">${doneCount}/${dayTasks.length}</span>`:''}`;
-    const addBtn = document.createElement('button');
-    addBtn.className = 'add-btn'; addBtn.textContent = '+';
+    const addBtn = document.createElement('button'); addBtn.className = 'add-btn'; addBtn.textContent = '+';
     addBtn.addEventListener('click', () => openModal({ ...day, key: sk }));
     if (!dayTasks.length) { const sp = document.createElement('span'); sp.style.marginLeft='auto'; header.appendChild(sp); }
-    header.appendChild(addBtn);
-    slot.appendChild(header);
+    header.appendChild(addBtn); slot.appendChild(header);
     dayTasks.forEach(t => slot.appendChild(makeTaskRow(t, false)));
-
+    // Drop target
     slot.addEventListener('dragover', e => { e.preventDefault(); slot.classList.add('drag-over'); });
     slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
-    slot.addEventListener('drop', e => {
+    slot.addEventListener('drop', async e => {
       e.preventDefault(); slot.classList.remove('drag-over');
       const dataStr = e.dataTransfer.getData('text/plain'); if (!dataStr) return;
       const data = JSON.parse(dataStr);
-      if (data.source === 'inventory') tasks.push({ id:mkId(), title:data.title, cat:data.cat, day:sk, done:false });
-      else if (data.source === 'day') { const t = tasks.find(x=>x.id===data.id); if (t) t.day = sk; }
-      else if (data.source === 'overdue') { const t = overdueTasks.find(x=>x.id===data.id); if (t) { overdueTasks = overdueTasks.filter(x=>x.id!==data.id); tasks.push({ id:t.id, title:t.title, cat:t.cat, day:sk, done:false }); }}
-      renderAll();
+      if (data.source === 'inventory') {
+        // Duplicate from attic: create new task + increment freq
+        const inv = inventory.find(x => x.id === data.invId);
+        if (inv) { inv.freq = (inv.freq||0) + 1; await dbUpsertTask(inv, true); }
+        const newTask = { id: crypto.randomUUID(), title: data.title, cat: data.cat, day: sk, done: false };
+        tasks.push(newTask); await dbUpsertTask(newTask, false);
+      } else if (data.source === 'day') {
+        const t = tasks.find(x => x.id === data.id); if (t) { t.day = sk; await dbUpsertTask(t, false); }
+      } else if (data.source === 'overdue') {
+        const t = overdueTasks.find(x => x.id === data.id);
+        if (t) { t.day = sk; t.overdue = false; overdueTasks = overdueTasks.filter(x=>x.id!==data.id); tasks.push(t); await dbUpsertTask(t, false); }
+      }
+      renderUI();
     });
-
     container.appendChild(slot);
     if (i < DAYS.length - 1) { const d = document.createElement('div'); d.className='divider'; container.appendChild(d); }
   });
 }
 
+// ============================================================
+// MAKE TASK ROW
+// ============================================================
 function makeTaskRow(task, isOverdue) {
   const row = document.createElement('div');
   row.className = 'task-row' + (task.done ? ' completed' : '');
@@ -640,22 +710,24 @@ function makeTaskRow(task, isOverdue) {
   row.addEventListener('dragend', () => row.classList.remove('dragging'));
   row.addEventListener('contextmenu', e => {
     e.preventDefault(); e.stopPropagation();
-    showCtxDel(e.clientX, e.clientY, `delete "${task.title}"?`, () => {
+    showCtxDel(e.clientX, e.clientY, `delete "${task.title}"?`, async () => {
       if (isOverdue) overdueTasks = overdueTasks.filter(t => t.id !== task.id);
       else tasks = tasks.filter(t => t.id !== task.id);
-      renderAll();
+      await dbDeleteTask(task.id);
+      renderUI();
     });
   });
-
   const cb = document.createElement('div');
   cb.className = 'checkbox' + (task.done ? ` checked ${task.cat}` : '');
   if (isOverdue && !task.done) cb.style.cssText = 'border-color:var(--red);opacity:0.6';
-  cb.addEventListener('click', () => { task.done = !task.done; renderAll(); });
-
+  cb.addEventListener('click', async () => {
+    task.done = !task.done;
+    await dbUpsertTask(task, false);
+    renderUI();
+  });
   const dot = document.createElement('div'); dot.className = `cat-dot ${task.cat}`;
   const title = document.createElement('span'); title.className = 'task-title'; title.textContent = task.title;
   row.appendChild(cb); row.appendChild(dot); row.appendChild(title);
-
   if (isOverdue) {
     const tag = document.createElement('span'); tag.className='overdue-tag';
     const today = new Date();
@@ -667,41 +739,43 @@ function makeTaskRow(task, isOverdue) {
   return row;
 }
 
-// Inventory
+// ============================================================
+// RENDER INVENTORY
+// ============================================================
 function renderInventory(listId, filterId) {
   const list = document.getElementById(listId);
   const fc = document.getElementById(filterId);
   list.innerHTML = '';
-
   if (fc && !fc.dataset.init) {
     fc.dataset.init = '1';
     const all = document.createElement('button'); all.className='filter-chip active'; all.dataset.cat='all';
-    all.innerHTML='<span class="chip-icon">🪐</span> All'; all.addEventListener('click',()=>{activeCatFilter='all';renderAll();}); fc.appendChild(all);
-    CATS.forEach(c => { const ch = document.createElement('button'); ch.className='filter-chip'; ch.dataset.cat=c.id; ch.innerHTML=`<span class="chip-icon">${c.icon}</span> ${c.label}`; ch.addEventListener('click',()=>{activeCatFilter=c.id;renderAll();}); fc.appendChild(ch); });
+    all.innerHTML='<span class="chip-icon">\u{1FA90}</span> All'; all.addEventListener('click',()=>{activeCatFilter='all';renderUI();}); fc.appendChild(all);
+    CATS.forEach(c => { const ch = document.createElement('button'); ch.className='filter-chip'; ch.dataset.cat=c.id; ch.innerHTML=`<span class="chip-icon">${c.icon}</span> ${c.label}`; ch.addEventListener('click',()=>{activeCatFilter=c.id;renderUI();}); fc.appendChild(ch); });
   }
   if (fc) fc.querySelectorAll('.filter-chip').forEach(ch => ch.classList.toggle('active', ch.dataset.cat===activeCatFilter));
-
-  let items = [...inventory].sort((a,b)=>b.freq-a.freq);
+  let items = [...inventory].sort((a,b)=>(b.freq||0)-(a.freq||0));
   if (activeCatFilter !== 'all') items = items.filter(i=>i.cat===activeCatFilter);
-
   items.forEach((item,idx) => {
     const row = document.createElement('div'); row.className='inv-row'; row.draggable=true;
     row.addEventListener('dragstart', e => { row.classList.add('dragging'); e.dataTransfer.setData('text/plain', JSON.stringify({source:'inventory',title:item.title,cat:item.cat,invId:item.id})); e.dataTransfer.effectAllowed='copy'; });
     row.addEventListener('dragend', () => row.classList.remove('dragging'));
     row.addEventListener('contextmenu', e => {
       e.preventDefault(); e.stopPropagation();
-      showCtxDel(e.clientX, e.clientY, `delete "${item.title}"?`, () => {
+      showCtxDel(e.clientX, e.clientY, `delete "${item.title}"?`, async () => {
         inventory = inventory.filter(x => x.id !== item.id);
-        renderAll();
+        await dbDeleteTask(item.id);
+        renderUI();
       });
     });
-    row.innerHTML=`<div class="cat-dot ${item.cat}"></div><div class="inv-title-wrap"><div>${item.title}</div></div><span class="freq-badge">${item.freq}</span>`;
+    row.innerHTML=`<div class="cat-dot ${item.cat}"></div><div class="inv-title-wrap"><div>${item.title}</div></div><span class="freq-badge">${item.freq||0}</span>`;
     list.appendChild(row);
     if (idx<items.length-1){const d=document.createElement('div');d.className='divider';d.style.margin='0 40px';list.appendChild(d);}
   });
 }
 
-// Modal
+// ============================================================
+// MODAL
+// ============================================================
 let modalDay = null, modalCat = 'work';
 function openModal(day) {
   modalDay = day; modalCat = 'work';
@@ -725,11 +799,19 @@ document.getElementById('modalInput').addEventListener('input', e => { document.
 document.getElementById('modalInput').addEventListener('keydown', e => { if (e.key==='Enter'&&!document.getElementById('modalSubmit').disabled) submitModal(); });
 document.getElementById('modalSubmit').addEventListener('click', submitModal);
 
-function submitModal() {
+async function submitModal() {
   const val = document.getElementById('modalInput').value.trim(); if (!val) return;
-  if (modalDay && modalDay.key === '__inventory__') { inventory.push({id:mkId(),title:val,cat:modalCat,freq:0}); closeModal(); renderAll(); return; }
+  if (modalDay && modalDay.key === '__inventory__') {
+    const item = { id: crypto.randomUUID(), title: val, cat: modalCat, freq: 0 };
+    inventory.push(item);
+    await dbUpsertTask(item, true);
+    closeModal(); renderUI(); return;
+  }
   if (!modalDay) return;
-  tasks.push({id:mkId(),title:val,cat:modalCat,day:modalDay.key,done:false}); closeModal(); renderAll();
+  const item = { id: crypto.randomUUID(), title: val, cat: modalCat, day: modalDay.key, done: false };
+  tasks.push(item);
+  await dbUpsertTask(item, false);
+  closeModal(); renderUI();
 }
 
 document.getElementById('fabAdd').addEventListener('click', () => {
@@ -749,11 +831,14 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.add('active');
     document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
     document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
-    renderAll();
+    renderUI();
   });
 });
 
-function renderAll() {
+// ============================================================
+// RENDER ALL
+// ============================================================
+function renderUI() {
   updateProgress(); updateCountdown(); updateWeekLabels();
   renderBacklog('backlogFixed1'); renderBacklog('backlogFixed2');
   renderWeekNav('weekNav1'); renderWeekNav('weekNav2');
@@ -761,33 +846,14 @@ function renderAll() {
   renderInventory('invList','catFilter');
 }
 
-// Persistence
-function saveData() {
-  localStorage.setItem('wdk_tasks', JSON.stringify(tasks));
-  localStorage.setItem('wdk_overdue', JSON.stringify(overdueTasks));
-  localStorage.setItem('wdk_inventory', JSON.stringify(inventory));
-  localStorage.setItem('wdk_countdown', JSON.stringify(countdown));
-}
-function loadData() {
-  // Clear stale data from old hardcoded-date version
-  if (localStorage.getItem('wdk_version') !== 'v2') {
-    localStorage.clear();
-    localStorage.setItem('wdk_version', 'v2');
-    return;
-  }
-  try {
-    const t = localStorage.getItem('wdk_tasks'); if (t) tasks = JSON.parse(t);
-    const o = localStorage.getItem('wdk_overdue'); if (o) overdueTasks = JSON.parse(o);
-    const i = localStorage.getItem('wdk_inventory'); if (i) inventory = JSON.parse(i);
-    const c = localStorage.getItem('wdk_countdown'); if (c) countdown = JSON.parse(c);
-  } catch(e) {}
-}
-const _origRenderAll = renderAll;
-renderAll = function() { _origRenderAll(); saveData(); };
-loadData();
-renderAll();
-
-if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(() => {}); }
+// ============================================================
+// INIT: Load from Supabase + subscribe
+// ============================================================
+(async () => {
+  await dbLoadAll();
+  renderUI();
+  subscribeRealtime();
+})();
 </script>
 </body>
 </html>
