@@ -535,11 +535,29 @@ let inventory = [];    // attic items (is_inventory=true)
 let countdown = { label: 'Vacation', targetDate: '', emoji: '\u{1F3D6}\u{FE0F}' };
 
 // ============================================================
+// LOCAL CACHE — instant render from localStorage
+// ============================================================
+const CACHE_KEY = `wdk_cache_${USER_ID}`;
+function saveCache() {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ tasks, overdueTasks, inventory, countdown, ts: Date.now() }));
+  } catch(e) {}
+}
+function loadCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return false;
+    const c = JSON.parse(raw);
+    if (c.tasks) { tasks = c.tasks; overdueTasks = c.overdueTasks || []; inventory = c.inventory || []; }
+    if (c.countdown) Object.assign(countdown, c.countdown);
+    return true;
+  } catch(e) { return false; }
+}
+
+// ============================================================
 // SUPABASE CRUD
 // ============================================================
-async function dbLoadAll() {
-  const { data: rows } = await sb.from('tasks').select('*').eq('user_id', USER_ID).order('created_at');
-  if (!rows || rows.length === 0) { return; }
+function parseRows(rows) {
   tasks = []; overdueTasks = []; inventory = [];
   for (const r of rows) {
     const item = { id: r.id, title: r.title, cat: r.category, day: r.day,
@@ -547,20 +565,31 @@ async function dbLoadAll() {
       cycleDays: r.cycle_days || 0, lastDoneDate: r.last_done_date || null };
     if (r.is_inventory) { inventory.push(item); }
     else {
-      tasks.push(item); // always keep in tasks (visible in day slot)
-      if (r.overdue && !r.done) overdueTasks.push(item); // also show in overdue section
+      tasks.push(item);
+      if (r.overdue && !r.done) overdueTasks.push(item);
     }
   }
-  // Load countdown
-  const { data: cd } = await sb.from('countdown').select('*').eq('user_id', USER_ID).eq('id', 1).single();
+}
+
+async function dbLoadAll() {
+  // Parallel fetch both tables
+  const [tasksRes, cdRes] = await Promise.all([
+    sb.from('tasks').select('*').eq('user_id', USER_ID).order('created_at'),
+    sb.from('countdown').select('*').eq('user_id', USER_ID).eq('id', 1).single()
+  ]);
+  const rows = tasksRes.data;
+  if (rows && rows.length > 0) { parseRows(rows); }
+  const cd = cdRes.data;
   if (cd) {
     countdown.label = cd.label || 'Vacation';
     countdown.targetDate = cd.target_date || '';
     countdown.emoji = cd.emoji || '\u{1F3D6}\u{FE0F}';
   }
+  saveCache();
 }
 
 async function dbUpsertTask(item, isInventory) {
+  saveCache();
   await sb.from('tasks').upsert({
     id: item.id, title: item.title, category: item.cat, state: item.done ? 'completed' : (item.overdue ? 'overdue' : 'pending'),
     day: item.day || null, done: !!item.done, overdue: !!item.overdue,
@@ -572,6 +601,7 @@ async function dbUpsertTask(item, isInventory) {
 }
 
 async function dbDeleteTask(id) {
+  saveCache();
   await sb.from('tasks').delete().eq('id', id);
 }
 
@@ -1002,17 +1032,27 @@ async function processOverdue() {
 }
 
 // ============================================================
-// INIT: Load from Supabase + process overdue + subscribe
+// INIT: Cache-first instant render + background sync
 // ============================================================
 (async () => {
-  await dbLoadAll();
-  await processOverdue();
-  renderUI();
-  // Fade out loading overlay
   const overlay = document.getElementById('loadingOverlay');
-  if (overlay) {
-    overlay.classList.add('fade-out');
-    setTimeout(() => overlay.remove(), 400);
+  const hasCache = loadCache();
+
+  if (hasCache) {
+    // Instant render from cache — no loading screen
+    if (overlay) overlay.remove();
+    renderUI();
+    // Background sync: silently refresh from Supabase
+    dbLoadAll().then(() => { processOverdue().then(() => renderUI()); });
+  } else {
+    // No cache: must wait for Supabase
+    await dbLoadAll();
+    await processOverdue();
+    renderUI();
+    if (overlay) {
+      overlay.classList.add('fade-out');
+      setTimeout(() => overlay.remove(), 400);
+    }
   }
   subscribeRealtime();
 })();
