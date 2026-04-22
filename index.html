@@ -412,25 +412,17 @@ const SUPA_URL = 'https://pnfqtdbsijehsknyengr.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBuZnF0ZGJzaWplaHNrbnllbmdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NDM1MTUsImV4cCI6MjA5MjMxOTUxNX0.542WwJsqciVkCYszg62E6pvcFrhB3PT4jvFTvOvlAqw';
 const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
 
-// ============================================================
-// USER ID: from URL hash or auto-generate
-// ============================================================
+// User ID from URL hash
 function getUserId() {
   let uid = location.hash.replace('#','').trim();
   if (!uid) {
-    // Check localStorage for previously generated id
     uid = localStorage.getItem('wdk_user_id');
-    if (!uid) {
-      uid = crypto.randomUUID().slice(0,8);
-      localStorage.setItem('wdk_user_id', uid);
-    }
+    if (!uid) { uid = crypto.randomUUID().slice(0,8); localStorage.setItem('wdk_user_id', uid); }
     location.hash = uid;
   }
   return uid;
 }
 const USER_ID = getUserId();
-// Show share hint
-console.log('Your welldone-k ID:', USER_ID, '| Share this URL to sync across devices:', location.href);
 
 // ============================================================
 // CONTEXT DELETE POPOVER
@@ -504,11 +496,7 @@ let countdown = { label: 'Vacation', targetDate: '', emoji: '\u{1F3D6}\u{FE0F}' 
 // ============================================================
 async function dbLoadAll() {
   const { data: rows } = await sb.from('tasks').select('*').eq('user_id', USER_ID).order('created_at');
-  if (!rows || rows.length === 0) {
-    // New user: start with empty data, init countdown only
-    await sb.from('countdown').upsert({ id:1, label:'Vacation', target_date:'', emoji:'\u{1F3D6}\u{FE0F}', user_id: USER_ID });
-    return;
-  }
+  if (!rows || rows.length === 0) { return; }
   tasks = []; overdueTasks = []; inventory = [];
   for (const r of rows) {
     const item = { id: r.id, title: r.title, cat: r.category, day: r.day,
@@ -583,11 +571,10 @@ async function seedSampleData() {
   const rows = samples.map(s => ({
     title: s.title, category: s.category, day: s.day||null, done: !!s.done,
     overdue: !!s.overdue, due_date: s.due_date||null, completion_count: s.completion_count||0,
-    is_inventory: !!s.is_inventory, state: s.done?'completed':(s.overdue?'overdue':'pending'),
-    user_id: USER_ID
+    is_inventory: !!s.is_inventory, state: s.done?'completed':(s.overdue?'overdue':'pending')
   }));
   await sb.from('tasks').insert(rows);
-  await sb.from('countdown').upsert({ id:1, label:'Vacation', target_date:daysLater(11), emoji:'\u{1F3D6}\u{FE0F}', user_id: USER_ID });
+  await sb.from('countdown').upsert({ id:1, label:'Vacation', target_date:daysLater(11), emoji:'\u{1F3D6}\u{FE0F}' });
 }
 
 // ============================================================
