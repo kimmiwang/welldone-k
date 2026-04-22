@@ -774,9 +774,12 @@ function makeTaskRow(task, isOverdue) {
   row.appendChild(cb); row.appendChild(dot); row.appendChild(title);
   if (isOverdue) {
     const tag = document.createElement('span'); tag.className='overdue-tag';
-    const today = new Date();
     let delayDays = 0;
-    if (task.dueDate) { delayDays = Math.ceil((today - new Date(task.dueDate + 'T00:00:00')) / 86400000); }
+    if (task.dueDate) {
+      const due = new Date(task.dueDate + 'T00:00:00'); due.setHours(0,0,0,0);
+      const now = new Date(); now.setHours(0,0,0,0);
+      delayDays = Math.round((now - due) / 86400000);
+    }
     tag.textContent = delayDays > 0 ? `${delayDays}d late` : 'late';
     row.appendChild(tag);
   }
