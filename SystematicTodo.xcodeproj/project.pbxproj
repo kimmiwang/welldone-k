@@ -1,0 +1,37 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		/* App Target Sources */
+		A1000001 /* SystematicTodoApp.swift in Sources */ = {isa = PBXBuildFile; };
+		A1000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; };
+		A1000003 /* TaskRow.swift in Sources */ = {isa = PBXBuildFile; };
+		A1000004 /* QuickEntrySheet.swift in Sources */ = {isa = PBXBuildFile; };
+		A1000005 /* BacklogArea.swift in Sources */ = {isa = PBXBuildFile; };
+		A1000006 /* DaySlot.swift in Sources */ = {isa = PBXBuildFile; };
+		A1000007 /* WeeklyPlannerPanel.swift in Sources */ = {isa = PBXBuildFile; };
+		A1000008 /* MasterInventoryPanel.swift in Sources */ = {isa = PBXBuildFile; };
+		A1000009 /* TodoIntents.swift in Sources */ = {isa = PBXBuildFile; };
+
+		/* Shared Sources (used by both App and Widget) */
+		B1000001 /* TaskCategory.swift in Sources */ = {isa = PBXBuildFile; };
+		B1000002 /* TaskState.swift in Sources */ = {isa = PBXBuildFile; };
+		B1000003 /* TodoItem.swift in Sources */ = {isa = PBXBuildFile; };
+		B1000004 /* WeekDay.swift in Sources */ = {isa = PBXBuildFile; };
+		B1000005 /* TodoStore.swift in Sources */ = {isa = PBXBuildFile; };
+		B1000006 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; };
+		B1000007 /* Components.swift in Sources */ = {isa = PBXBuildFile; };
+
+		/* Widget Extension Sources */
+		C1000001 /* TodoWidgetProvider.swift in Sources */ = {isa = PBXBuildFile; };
+		C1000002 /* TodoWidgetView.swift in Sources */ = {isa = PBXBuildFile; };
+/* End PBXBuildFile section */
+
+	};
+	rootObject = "ROOT_PROJECT_ID";
+}

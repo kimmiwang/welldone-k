@@ -1,0 +1,437 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		09D89760E744551755018CFA /* WelldoneKWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D1B28DCC2B5DBBDADAA39BD7 /* WelldoneKWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		2F6FD73B38D4109FE52C4CBF /* WelldoneKApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32E3DE47F6E88AAD4BDD1922 /* WelldoneKApp.swift */; };
+		D07E7270772617D028764AF6 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F65292E7969F1478C52301B /* Models.swift */; };
+		D08F4C5223E3C6E0A7B465A7 /* WelldoneKWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B59D9953EB4DB19C502D514 /* WelldoneKWidget.swift */; };
+		E2ECEC4C1B03221C1215EC41 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F65292E7969F1478C52301B /* Models.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C81505B8E5F77E32F171845C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 49DACD377EC00863D35A0118 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5044ED4DAC3736B9044CB078;
+			remoteInfo = WelldoneKWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B5C40B0E5595E10FFEF1609C /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				09D89760E744551755018CFA /* WelldoneKWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		18D8A09B09B378F4D476EE42 /* welldone-k.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "welldone-k.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		32E3DE47F6E88AAD4BDD1922 /* WelldoneKApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelldoneKApp.swift; sourceTree = "<group>"; };
+		35C2756D2D40EF994D1DE419 /* WelldoneKWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WelldoneKWidget.entitlements; sourceTree = "<group>"; };
+		3F65292E7969F1478C52301B /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		9B59D9953EB4DB19C502D514 /* WelldoneKWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelldoneKWidget.swift; sourceTree = "<group>"; };
+		D1B28DCC2B5DBBDADAA39BD7 /* WelldoneKWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WelldoneKWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D1D6621E6DBC5810E28B634C /* WelldoneK.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WelldoneK.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		53A39DE156347AC75A9E9186 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				18D8A09B09B378F4D476EE42 /* welldone-k.app */,
+				D1B28DCC2B5DBBDADAA39BD7 /* WelldoneKWidget.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		99E05F75DBDDBEE33DE36DF7 /* WelldoneKWidget */ = {
+			isa = PBXGroup;
+			children = (
+				35C2756D2D40EF994D1DE419 /* WelldoneKWidget.entitlements */,
+				9B59D9953EB4DB19C502D514 /* WelldoneKWidget.swift */,
+			);
+			path = WelldoneKWidget;
+			sourceTree = "<group>";
+		};
+		AD71FF53533F8D380001B65F /* WelldoneK */ = {
+			isa = PBXGroup;
+			children = (
+				3F65292E7969F1478C52301B /* Models.swift */,
+				D1D6621E6DBC5810E28B634C /* WelldoneK.entitlements */,
+				32E3DE47F6E88AAD4BDD1922 /* WelldoneKApp.swift */,
+			);
+			path = WelldoneK;
+			sourceTree = "<group>";
+		};
+		E1BC8B3208BB758595597DB1 = {
+			isa = PBXGroup;
+			children = (
+				AD71FF53533F8D380001B65F /* WelldoneK */,
+				99E05F75DBDDBEE33DE36DF7 /* WelldoneKWidget */,
+				53A39DE156347AC75A9E9186 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5044ED4DAC3736B9044CB078 /* WelldoneKWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A7A777E5A8D8D9EEA67CE950 /* Build configuration list for PBXNativeTarget "WelldoneKWidgetExtension" */;
+			buildPhases = (
+				3B5FB3AC0D2FBB81B5E9DB22 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = WelldoneKWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = WelldoneKWidgetExtension;
+			productReference = D1B28DCC2B5DBBDADAA39BD7 /* WelldoneKWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		B5D9D3A892D67FCCA1AC7440 /* WelldoneK */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 85D543955B42192FC43F5C47 /* Build configuration list for PBXNativeTarget "WelldoneK" */;
+			buildPhases = (
+				853F2B760F890BA535B95B03 /* Sources */,
+				B5C40B0E5595E10FFEF1609C /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0108F71C0A7CA4E080E43554 /* PBXTargetDependency */,
+			);
+			name = WelldoneK;
+			packageProductDependencies = (
+			);
+			productName = WelldoneK;
+			productReference = 18D8A09B09B378F4D476EE42 /* welldone-k.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		49DACD377EC00863D35A0118 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2640;
+			};
+			buildConfigurationList = B9FE9E0527F38BF0F0BE1BD6 /* Build configuration list for PBXProject "WelldoneK" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = E1BC8B3208BB758595597DB1;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 53A39DE156347AC75A9E9186 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B5D9D3A892D67FCCA1AC7440 /* WelldoneK */,
+				5044ED4DAC3736B9044CB078 /* WelldoneKWidgetExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		3B5FB3AC0D2FBB81B5E9DB22 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D07E7270772617D028764AF6 /* Models.swift in Sources */,
+				D08F4C5223E3C6E0A7B465A7 /* WelldoneKWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		853F2B760F890BA535B95B03 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E2ECEC4C1B03221C1215EC41 /* Models.swift in Sources */,
+				2F6FD73B38D4109FE52C4CBF /* WelldoneKApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0108F71C0A7CA4E080E43554 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5044ED4DAC3736B9044CB078 /* WelldoneKWidgetExtension */;
+			targetProxy = C81505B8E5F77E32F171845C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1E30D870B5067B83344B7CBF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = WelldoneK/WelldoneK.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6G8H83P5D2;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.welldone-k.app";
+				PRODUCT_NAME = "welldone-k";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		2E3B51D7D436381C51763C15 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = WelldoneKWidget/WelldoneKWidget.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6G8H83P5D2;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier = "com.apple.widgetkit-extension";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.welldone-k.app.widget";
+				PRODUCT_NAME = WelldoneKWidget;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		844C0AC802D27965EEBBC366 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = WelldoneKWidget/WelldoneKWidget.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6G8H83P5D2;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier = "com.apple.widgetkit-extension";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.welldone-k.app.widget";
+				PRODUCT_NAME = WelldoneKWidget;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		9459B16E96FB47DF4D35F89F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = WelldoneK/WelldoneK.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6G8H83P5D2;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.welldone-k.app";
+				PRODUCT_NAME = "welldone-k";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		DCE78897D7C0B4808237491B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		E4F0EA51B72EE872996B5B88 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		85D543955B42192FC43F5C47 /* Build configuration list for PBXNativeTarget "WelldoneK" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9459B16E96FB47DF4D35F89F /* Debug */,
+				1E30D870B5067B83344B7CBF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A7A777E5A8D8D9EEA67CE950 /* Build configuration list for PBXNativeTarget "WelldoneKWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2E3B51D7D436381C51763C15 /* Debug */,
+				844C0AC802D27965EEBBC366 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B9FE9E0527F38BF0F0BE1BD6 /* Build configuration list for PBXProject "WelldoneK" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DCE78897D7C0B4808237491B /* Debug */,
+				E4F0EA51B72EE872996B5B88 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 49DACD377EC00863D35A0118 /* Project object */;
+}

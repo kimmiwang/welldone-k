@@ -238,6 +238,38 @@
   .token-label { font-size: 13px; font-weight: 600; }
   .token-value { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
 
+  /* Loading overlay */
+  .loading-overlay {
+    position: absolute; inset: 0; z-index: 50;
+    background: var(--card);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+    border-radius: var(--radius-xl); transition: opacity 0.35s ease;
+  }
+  .loading-overlay.fade-out { opacity: 0; pointer-events: none; }
+  .loading-spinner {
+    width: 28px; height: 28px; border: 3px solid var(--separator);
+    border-top-color: var(--blue); border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+
+  /* Skeleton pulse for day slots */
+  .skeleton-row {
+    display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+  }
+  .skeleton-circle {
+    width: 18px; height: 18px; border-radius: 50%; background: var(--separator);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  .skeleton-bar {
+    height: 12px; border-radius: 6px; background: var(--separator);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+  .widget-container { position: relative; }
+
   @media (max-width: 600px) {
     .split-view { flex-direction: column; }
     .split-left { flex: none; border-right: none; border-bottom: 0.5px solid var(--separator); max-height: 50vh; }
@@ -249,6 +281,17 @@
 <h1>welldone-k</h1>
 
 <div class="widget-container" id="mainWidget">
+  <!-- Loading overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">loading tasks…</div>
+    <div style="width:70%;max-width:300px;margin-top:12px">
+      <div class="skeleton-row"><div class="skeleton-circle"></div><div class="skeleton-bar" style="width:60%"></div></div>
+      <div class="skeleton-row"><div class="skeleton-circle"></div><div class="skeleton-bar" style="width:45%"></div></div>
+      <div class="skeleton-row"><div class="skeleton-circle"></div><div class="skeleton-bar" style="width:55%"></div></div>
+      <div class="skeleton-row"><div class="skeleton-circle"></div><div class="skeleton-bar" style="width:38%"></div></div>
+    </div>
+  </div>
   <!-- 2 Tabs only: todo + organize -->
   <div class="tab-bar">
     <button class="tab-btn active" data-tab="planner">📅 todo</button>
@@ -965,6 +1008,12 @@ async function processOverdue() {
   await dbLoadAll();
   await processOverdue();
   renderUI();
+  // Fade out loading overlay
+  const overlay = document.getElementById('loadingOverlay');
+  if (overlay) {
+    overlay.classList.add('fade-out');
+    setTimeout(() => overlay.remove(), 400);
+  }
   subscribeRealtime();
 })();
 </script>
