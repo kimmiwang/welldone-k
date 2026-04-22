@@ -505,8 +505,9 @@ let countdown = { label: 'Vacation', targetDate: '', emoji: '\u{1F3D6}\u{FE0F}' 
 async function dbLoadAll() {
   const { data: rows } = await sb.from('tasks').select('*').eq('user_id', USER_ID).order('created_at');
   if (!rows || rows.length === 0) {
-    await seedSampleData();
-    return dbLoadAll();
+    // New user: start with empty data, init countdown only
+    await sb.from('countdown').upsert({ id:1, label:'Vacation', target_date:'', emoji:'\u{1F3D6}\u{FE0F}', user_id: USER_ID });
+    return;
   }
   tasks = []; overdueTasks = []; inventory = [];
   for (const r of rows) {
