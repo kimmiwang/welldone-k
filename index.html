@@ -493,9 +493,11 @@ async function dbLoadAll() {
     const item = { id: r.id, title: r.title, cat: r.category, day: r.day,
       done: r.done, overdue: r.overdue, dueDate: r.due_date, freq: r.completion_count,
       cycleDays: r.cycle_days || 0, lastDoneDate: r.last_done_date || null };
-    if (r.is_inventory) inventory.push(item);
-    else if (r.overdue) overdueTasks.push(item);
-    else tasks.push(item);
+    if (r.is_inventory) { inventory.push(item); }
+    else {
+      tasks.push(item); // always keep in tasks (visible in day slot)
+      if (r.overdue && !r.done) overdueTasks.push(item); // also show in overdue section
+    }
   }
   // Load countdown
   const { data: cd } = await sb.from('countdown').select('*').eq('id', 1).single();
@@ -913,28 +915,24 @@ function renderUI() {
 // AUTO-OVERDUE: mark past incomplete tasks as overdue
 // ============================================================
 async function processOverdue() {
-  const now = new Date();
-  const wd = now.getDay();
-  const diffToMon = wd === 0 ? -6 : 1 - wd;
-  const thisMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMon);
-  thisMonday.setHours(0,0,0,0);
-
-  const dayMap = { mon:0, tue:1, wed:2, thu:3, fri:4, sat:5, sun:6 };
+  // Use the same generateWeek logic to get accurate dates
+  const currentWeek = generateWeek(0);
   const today = new Date(); today.setHours(0,0,0,0);
 
+  const dayKeyToDate = {};
+  currentWeek.forEach(d => {
+    const key = d.realKey || d.key;
+    dayKeyToDate[key] = new Date(d.fullDate); 
+    dayKeyToDate[key].setHours(0,0,0,0);
+  });
+
   let changed = false;
-  // Check all non-done, non-overdue tasks with a day key (current week only, no offset suffix)
   for (const t of tasks) {
     if (t.done || t.overdue || !t.day) continue;
-    // Only process current-week tasks (no offset suffix like _1, _-1)
-    if (t.day.includes('_')) continue;
-    const idx = dayMap[t.day];
-    if (idx === undefined) continue;
-    const taskDate = new Date(thisMonday);
-    taskDate.setDate(taskDate.getDate() + idx);
-    taskDate.setHours(0,0,0,0);
+    if (t.day.includes('_')) continue; // skip non-current-week
+    const taskDate = dayKeyToDate[t.day];
+    if (!taskDate) continue;
     if (taskDate < today) {
-      // This task's date has passed and it's not done -> overdue
       t.overdue = true;
       t.dueDate = taskDate.toISOString().slice(0,10);
       await dbUpsertTask(t, false);
@@ -942,7 +940,7 @@ async function processOverdue() {
     }
   }
   if (changed) {
-    await dbLoadAll(); // reload to get correct overdue/tasks split
+    await dbLoadAll();
   }
 }
 
