@@ -572,37 +572,48 @@ function parseRows(rows) {
 }
 
 async function dbLoadAll() {
-  // Parallel fetch both tables
-  const [tasksRes, cdRes] = await Promise.all([
-    sb.from('tasks').select('*').eq('user_id', USER_ID).order('created_at'),
-    sb.from('countdown').select('*').eq('user_id', USER_ID).eq('id', 1).single()
-  ]);
-  const rows = tasksRes.data;
-  if (rows && rows.length > 0) { parseRows(rows); }
-  const cd = cdRes.data;
-  if (cd) {
-    countdown.label = cd.label || 'Vacation';
-    countdown.targetDate = cd.target_date || '';
-    countdown.emoji = cd.emoji || '\u{1F3D6}\u{FE0F}';
+  // Parallel fetch both tables with timeout
+  const timeout = (ms) => new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms));
+  try {
+    const [tasksRes, cdRes] = await Promise.race([
+      Promise.all([
+        sb.from('tasks').select('*').eq('user_id', USER_ID).order('created_at'),
+        sb.from('countdown').select('*').eq('user_id', USER_ID).eq('id', 1).single()
+      ]),
+      timeout(6000).then(() => { throw new Error('timeout'); })
+    ]);
+    const rows = tasksRes.data;
+    if (rows && rows.length > 0) { parseRows(rows); }
+    const cd = cdRes.data;
+    if (cd) {
+      countdown.label = cd.label || 'Vacation';
+      countdown.targetDate = cd.target_date || '';
+      countdown.emoji = cd.emoji || '\u{1F3D6}\u{FE0F}';
+    }
+    saveCache();
+    return true;
+  } catch(e) {
+    console.warn('dbLoadAll timeout or error:', e.message);
+    return false;
   }
-  saveCache();
 }
 
-async function dbUpsertTask(item, isInventory) {
+// Fire-and-forget helpers — never block UI
+function dbUpsertTask(item, isInventory) {
   saveCache();
-  await sb.from('tasks').upsert({
+  sb.from('tasks').upsert({
     id: item.id, title: item.title, category: item.cat, state: item.done ? 'completed' : (item.overdue ? 'overdue' : 'pending'),
     day: item.day || null, done: !!item.done, overdue: !!item.overdue,
     due_date: item.dueDate || null, completion_count: item.freq || 0,
     is_inventory: !!isInventory, updated_at: new Date().toISOString(),
     cycle_days: item.cycleDays || 0, last_done_date: item.lastDoneDate || null,
     user_id: USER_ID
-  });
+  }).then(() => {}).catch(e => console.warn('upsert error', e));
 }
 
-async function dbDeleteTask(id) {
+function dbDeleteTask(id) {
   saveCache();
-  await sb.from('tasks').delete().eq('id', id);
+  sb.from('tasks').delete().eq('id', id).then(() => {}).catch(e => console.warn('delete error', e));
 }
 
 async function dbSaveCountdown() {
@@ -1002,7 +1013,6 @@ function renderUI() {
 // AUTO-OVERDUE: mark past incomplete tasks as overdue
 // ============================================================
 async function processOverdue() {
-  // Use the same generateWeek logic to get accurate dates
   const currentWeek = generateWeek(0);
   const today = new Date(); today.setHours(0,0,0,0);
 
@@ -1016,43 +1026,44 @@ async function processOverdue() {
   let changed = false;
   for (const t of tasks) {
     if (t.done || t.overdue || !t.day) continue;
-    if (t.day.includes('_')) continue; // skip non-current-week
+    if (t.day.includes('_')) continue;
     const taskDate = dayKeyToDate[t.day];
     if (!taskDate) continue;
     if (taskDate < today) {
       t.overdue = true;
       t.dueDate = taskDate.toISOString().slice(0,10);
-      await dbUpsertTask(t, false);
+      if (!overdueTasks.find(x => x.id === t.id)) overdueTasks.push(t);
+      dbUpsertTask(t, false); // fire-and-forget
       changed = true;
     }
   }
-  if (changed) {
-    await dbLoadAll();
-  }
+  if (changed) saveCache();
 }
 
 // ============================================================
-// INIT: Cache-first instant render + background sync
+// INIT: Instant render, always. Supabase syncs in background.
 // ============================================================
 (async () => {
   const overlay = document.getElementById('loadingOverlay');
   const hasCache = loadCache();
 
-  if (hasCache) {
-    // Instant render from cache — no loading screen
-    if (overlay) overlay.remove();
+  // Always render immediately — cache or empty
+  if (overlay) overlay.remove();
+  if (hasCache) renderUI();
+
+  // Background: load from Supabase (with 6s timeout)
+  const loaded = await dbLoadAll();
+  if (loaded) {
+    processOverdue().then(() => { renderUI(); });
+  } else if (!hasCache) {
+    // Supabase timed out + no cache: show empty, retry in background
     renderUI();
-    // Background sync: silently refresh from Supabase
-    dbLoadAll().then(() => { processOverdue().then(() => renderUI()); });
-  } else {
-    // No cache: must wait for Supabase
-    await dbLoadAll();
-    await processOverdue();
-    renderUI();
-    if (overlay) {
-      overlay.classList.add('fade-out');
-      setTimeout(() => overlay.remove(), 400);
-    }
+    const retry = async () => {
+      const ok = await dbLoadAll();
+      if (ok) { await processOverdue(); renderUI(); }
+    };
+    setTimeout(retry, 5000);
+    setTimeout(retry, 15000);
   }
   subscribeRealtime();
 })();
