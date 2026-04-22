@@ -910,10 +910,48 @@ function renderUI() {
 }
 
 // ============================================================
-// INIT: Load from Supabase + subscribe
+// AUTO-OVERDUE: mark past incomplete tasks as overdue
+// ============================================================
+async function processOverdue() {
+  const now = new Date();
+  const wd = now.getDay();
+  const diffToMon = wd === 0 ? -6 : 1 - wd;
+  const thisMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMon);
+  thisMonday.setHours(0,0,0,0);
+
+  const dayMap = { mon:0, tue:1, wed:2, thu:3, fri:4, sat:5, sun:6 };
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  let changed = false;
+  // Check all non-done, non-overdue tasks with a day key (current week only, no offset suffix)
+  for (const t of tasks) {
+    if (t.done || t.overdue || !t.day) continue;
+    // Only process current-week tasks (no offset suffix like _1, _-1)
+    if (t.day.includes('_')) continue;
+    const idx = dayMap[t.day];
+    if (idx === undefined) continue;
+    const taskDate = new Date(thisMonday);
+    taskDate.setDate(taskDate.getDate() + idx);
+    taskDate.setHours(0,0,0,0);
+    if (taskDate < today) {
+      // This task's date has passed and it's not done -> overdue
+      t.overdue = true;
+      t.dueDate = taskDate.toISOString().slice(0,10);
+      await dbUpsertTask(t, false);
+      changed = true;
+    }
+  }
+  if (changed) {
+    await dbLoadAll(); // reload to get correct overdue/tasks split
+  }
+}
+
+// ============================================================
+// INIT: Load from Supabase + process overdue + subscribe
 // ============================================================
 (async () => {
   await dbLoadAll();
+  await processOverdue();
   renderUI();
   subscribeRealtime();
 })();
