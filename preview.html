@@ -600,6 +600,7 @@ async function dbLoadAll() {
 
 // Fire-and-forget helpers — never block UI
 function dbUpsertTask(item, isInventory) {
+  markLocalWrite();
   saveCache();
   sb.from('tasks').upsert({
     id: item.id, title: item.title, category: item.cat, state: item.done ? 'completed' : (item.overdue ? 'overdue' : 'pending'),
@@ -612,6 +613,7 @@ function dbUpsertTask(item, isInventory) {
 }
 
 function dbDeleteTask(id) {
+  markLocalWrite();
   saveCache();
   sb.from('tasks').delete().eq('id', id).then(() => {}).catch(e => console.warn('delete error', e));
 }
@@ -664,12 +666,17 @@ async function seedSampleData() {
 // ============================================================
 // REALTIME SUBSCRIPTION
 // ============================================================
+let lastLocalWrite = 0;
+function markLocalWrite() { lastLocalWrite = Date.now(); }
 function subscribeRealtime() {
   sb.channel('tasks-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+      // Skip if we just wrote locally (avoid stale data overwriting local state)
+      if (Date.now() - lastLocalWrite < 3000) return;
       dbLoadAll().then(() => renderUI());
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'countdown' }, () => {
+      if (Date.now() - lastLocalWrite < 3000) return;
       dbLoadAll().then(() => renderUI());
     })
     .subscribe();
