@@ -798,7 +798,12 @@ function renderDays(containerId) {
         const newTask = { id: crypto.randomUUID(), title: data.title, cat: data.cat, day: sk, done: false, fromInvId: data.invId };
         tasks.push(newTask); await dbUpsertTask(newTask, false);
       } else if (data.source === 'day') {
-        const t = tasks.find(x => x.id === data.id); if (t) { t.day = sk; await dbUpsertTask(t, false); }
+        const t = tasks.find(x => x.id === data.id);
+        if (t) {
+          t.day = sk;
+          if (t.overdue) { t.overdue = false; overdueTasks = overdueTasks.filter(x => x.id !== t.id); }
+          dbUpsertTask(t, false);
+        }
       } else if (data.source === 'overdue') {
         const t = overdueTasks.find(x => x.id === data.id);
         if (t) { t.day = sk; t.overdue = false; overdueTasks = overdueTasks.filter(x=>x.id!==data.id); tasks.push(t); await dbUpsertTask(t, false); }
