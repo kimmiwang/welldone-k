@@ -512,21 +512,39 @@ function generateWeek(offset) {
   const baseMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMon);
   const monday = new Date(baseMonday); monday.setDate(monday.getDate() + offset * 7);
   const names = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  const keys = ['mon','tue','wed','thu','fri','sat','sun'];
   const todayDate = new Date();
   return Array.from({length:7}, (_,i) => {
     const d = new Date(monday); d.setDate(d.getDate() + i);
     const isToday = d.toDateString() === todayDate.toDateString();
+    const isoDate = d.toISOString().slice(0,10); // YYYY-MM-DD
     return { num: String(d.getDate()), name: names[i],
-      key: keys[i] + (offset !== 0 ? '_' + offset : ''),
-      realKey: offset === 0 ? keys[i] : null,
+      key: isoDate,
       past: d < todayDate && !isToday, today: isToday,
       dateStr: `${d.getMonth()+1}/${d.getDate()}`, fullDate: d };
   });
 }
 function getWeekRange(offset) { const d = generateWeek(offset); return `${d[0].dateStr} - ${d[6].dateStr}`; }
-function storageDayKey(day) { return day.realKey || day.key; }
+function storageDayKey(day) { return day.key; }
 function catColor(c) { return CATS.find(x=>x.id===c)?.color || '#8E8E93'; }
+
+// Convert legacy day keys (mon, tue_-1 etc.) to YYYY-MM-DD using created_at
+function migrateLegacyDayKey(dayKey, createdAt) {
+  if (!dayKey) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) return dayKey;
+  const dayMap = { mon:0, tue:1, wed:2, thu:3, fri:4, sat:5, sun:6 };
+  const baseKey = dayKey.replace(/_-?\d+$/, '');
+  const dayIdx = dayMap[baseKey];
+  if (dayIdx === undefined) return null;
+  const offsetMatch = dayKey.match(/_(-?\d+)$/);
+  const wOffset = offsetMatch ? parseInt(offsetMatch[1]) : 0;
+  // Use created_at to find the Monday of the week the task was created
+  const ref = createdAt ? new Date(createdAt) : new Date();
+  const refDay = ref.getDay();
+  const diffToMon = refDay === 0 ? -6 : 1 - refDay;
+  const createdMon = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() + diffToMon + wOffset * 7);
+  const taskDate = new Date(createdMon); taskDate.setDate(taskDate.getDate() + dayIdx);
+  return taskDate.toISOString().slice(0,10);
+}
 
 // In-memory data (synced with Supabase)
 let tasks = [];       // day tasks (has day field)
@@ -538,9 +556,10 @@ let countdown = { label: 'Vacation', targetDate: '', emoji: '\u{1F3D6}\u{FE0F}' 
 // LOCAL CACHE — instant render from localStorage
 // ============================================================
 const CACHE_KEY = `wdk_cache_${USER_ID}`;
+const CACHE_VERSION = 2; // bump to invalidate old format
 function saveCache() {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ tasks, overdueTasks, inventory, countdown, ts: Date.now() }));
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ v: CACHE_VERSION, tasks, overdueTasks, inventory, countdown, ts: Date.now() }));
   } catch(e) {}
 }
 function loadCache() {
@@ -548,6 +567,7 @@ function loadCache() {
     const raw = localStorage.getItem(CACHE_KEY);
     if (!raw) return false;
     const c = JSON.parse(raw);
+    if (c.v !== CACHE_VERSION) { localStorage.removeItem(CACHE_KEY); return false; }
     if (c.tasks) { tasks = c.tasks; overdueTasks = c.overdueTasks || []; inventory = c.inventory || []; }
     if (c.countdown) Object.assign(countdown, c.countdown);
     return true;
@@ -559,8 +579,15 @@ function loadCache() {
 // ============================================================
 function parseRows(rows) {
   tasks = []; overdueTasks = []; inventory = [];
+  let needsMigration = [];
   for (const r of rows) {
-    const item = { id: r.id, title: r.title, cat: r.category, day: r.day,
+    let dayVal = r.day;
+    // Migrate legacy keys
+    if (dayVal && !/^\d{4}-\d{2}-\d{2}$/.test(dayVal)) {
+      dayVal = migrateLegacyDayKey(dayVal, r.created_at);
+      needsMigration.push({ id: r.id, newDay: dayVal });
+    }
+    const item = { id: r.id, title: r.title, cat: r.category, day: dayVal,
       done: r.done, overdue: r.overdue, dueDate: r.due_date, freq: r.completion_count,
       cycleDays: r.cycle_days || 0, lastDoneDate: r.last_done_date || null };
     if (r.is_inventory) { inventory.push(item); }
@@ -568,6 +595,10 @@ function parseRows(rows) {
       tasks.push(item);
       if (r.overdue && !r.done) overdueTasks.push(item);
     }
+  }
+  // Fire-and-forget migration of legacy day keys in DB
+  for (const m of needsMigration) {
+    sb.from('tasks').update({ day: m.newDay }).eq('id', m.id).then(() => {}).catch(() => {});
   }
 }
 
@@ -694,7 +725,7 @@ function tasksForDay(dayKey) {
 // ============================================================
 function updateProgress() {
   const days = generateWeek(weekOffset);
-  const dayKeys = days.map(d => storageDayKey(d));
+  const dayKeys = days.map(d => d.key);
   const weekTasks = tasks.filter(t => dayKeys.includes(t.day));
   const total = weekTasks.length, done = weekTasks.filter(t => t.done).length;
   const circ = 2 * Math.PI * 7;
@@ -845,33 +876,18 @@ function makeTaskRow(task, isOverdue) {
   if (isOverdue && !task.done) cb.style.cssText = 'border-color:var(--red);opacity:0.6';
   cb.addEventListener('click', async () => {
     task.done = !task.done;
-    await dbUpsertTask(task, false);
+    dbUpsertTask(task, false);
     // When completed, update matching attic item's lastDoneDate
     if (task.done) {
       const inv = inventory.find(x => x.title === task.title && x.cat === task.cat && x.cycleDays > 0);
       if (inv) {
         if (isOverdue) {
-          // Overdue tasks: count from today
           inv.lastDoneDate = new Date().toISOString().slice(0,10);
         } else {
-          // Normal tasks: count from the day slot's actual date
-          const dayMap = { mon:0, tue:1, wed:2, thu:3, fri:4, sat:5, sun:6 };
-          const baseKey = (task.day || '').replace(/_-?\d+$/, ''); // strip offset suffix
-          const dayIdx = dayMap[baseKey];
-          if (dayIdx !== undefined) {
-            // Find the Monday of the week this task belongs to
-            const offsetMatch = (task.day || '').match(/_(-?\d+)$/);
-            const wOffset = offsetMatch ? parseInt(offsetMatch[1]) : 0;
-            const now = new Date(); const wd = now.getDay();
-            const diffToMon = wd === 0 ? -6 : 1 - wd;
-            const thisMon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMon + wOffset * 7);
-            const taskDate = new Date(thisMon); taskDate.setDate(taskDate.getDate() + dayIdx);
-            inv.lastDoneDate = taskDate.toISOString().slice(0,10);
-          } else {
-            inv.lastDoneDate = new Date().toISOString().slice(0,10);
-          }
+          // day is YYYY-MM-DD, use it directly
+          inv.lastDoneDate = task.day || new Date().toISOString().slice(0,10);
         }
-        await dbUpsertTask(inv, true);
+        dbUpsertTask(inv, true);
       }
     }
     renderUI();
@@ -882,24 +898,11 @@ function makeTaskRow(task, isOverdue) {
   if (isOverdue) {
     const tag = document.createElement('span'); tag.className='overdue-tag';
     let delayDays = 0;
-    // Compute actual date from day key for accuracy
-    const dayMap = { mon:0, tue:1, wed:2, thu:3, fri:4, sat:5, sun:6 };
-    const baseKey = (task.day || '').replace(/_-?\d+$/, '');
-    const dayIdx = dayMap[baseKey];
-    if (dayIdx !== undefined) {
-      const offsetMatch = (task.day || '').match(/_(-?\d+)$/);
-      const wOffset = offsetMatch ? parseInt(offsetMatch[1]) : 0;
-      const now = new Date(); const wd = now.getDay();
-      const diffToMon = wd === 0 ? -6 : 1 - wd;
-      const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMon + wOffset * 7);
-      const taskDate = new Date(mon); taskDate.setDate(taskDate.getDate() + dayIdx);
-      taskDate.setHours(0,0,0,0);
+    const dueStr = task.day || task.dueDate;
+    if (dueStr) {
+      const due = new Date(dueStr + 'T00:00:00'); due.setHours(0,0,0,0);
       const today = new Date(); today.setHours(0,0,0,0);
-      delayDays = Math.round((today - taskDate) / 86400000);
-    } else if (task.dueDate) {
-      const due = new Date(task.dueDate + 'T00:00:00'); due.setHours(0,0,0,0);
-      const now = new Date(); now.setHours(0,0,0,0);
-      delayDays = Math.round((now - due) / 86400000);
+      delayDays = Math.round((today - due) / 86400000);
     }
     tag.textContent = delayDays > 0 ? `${delayDays}d late` : 'late';
     row.appendChild(tag);
@@ -1039,29 +1042,18 @@ function renderUI() {
 // AUTO-OVERDUE: mark past incomplete tasks as overdue
 // ============================================================
 async function processOverdue() {
-  const currentWeek = generateWeek(0);
   const today = new Date(); today.setHours(0,0,0,0);
-
-  const dayKeyToDate = {};
-  currentWeek.forEach(d => {
-    const key = d.realKey || d.key;
-    dayKeyToDate[key] = new Date(d.fullDate); 
-    dayKeyToDate[key].setHours(0,0,0,0);
-  });
+  const todayStr = today.toISOString().slice(0,10);
 
   let changed = false;
   for (const t of tasks) {
     if (t.done || t.overdue || !t.day) continue;
-    if (t.day.includes('_')) continue;
-    const taskDate = dayKeyToDate[t.day];
-    if (!taskDate) continue;
-    if (taskDate < today) {
-      t.overdue = true;
-      t.dueDate = taskDate.toISOString().slice(0,10);
-      if (!overdueTasks.find(x => x.id === t.id)) overdueTasks.push(t);
-      dbUpsertTask(t, false); // fire-and-forget
-      changed = true;
-    }
+    if (t.day >= todayStr) continue; // not past yet
+    t.overdue = true;
+    t.dueDate = t.day;
+    if (!overdueTasks.find(x => x.id === t.id)) overdueTasks.push(t);
+    dbUpsertTask(t, false);
+    changed = true;
   }
   if (changed) saveCache();
 }
