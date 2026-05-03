@@ -210,6 +210,13 @@
   .ctx-del-btn:hover { opacity: 0.85; }
   .ctx-del-cancel { background: var(--separator); color: var(--text-primary); }
   .ctx-del-confirm { background: var(--red); color: white; }
+  .ctx-del-edit { background: var(--blue); color: white; }
+  .ctx-del-edit-row { display: flex; gap: 6px; }
+  .ctx-edit-input {
+    flex: 1; border: none; background: #f5f5f7; border-radius: 6px; padding: 5px 8px;
+    font-family: var(--font); font-size: 12px; color: var(--text-primary); outline: none; min-width: 0;
+  }
+  .ctx-edit-save { background: var(--blue); color: white; flex-shrink: 0; }
 
   .cd-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 101; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
   .cd-modal-overlay.show { opacity: 1; pointer-events: auto; }
@@ -438,10 +445,15 @@
   </div>
 </div>
 
-<!-- Context Delete Popover -->
+<!-- Context Menu Popover -->
 <div class="ctx-del" id="ctxDel">
   <div class="ctx-del-title" id="ctxDelTitle"></div>
-  <div class="ctx-del-btns">
+  <div class="ctx-del-edit-row" id="ctxEditRow" style="display:none">
+    <input class="ctx-edit-input" id="ctxEditInput" maxlength="40" autocomplete="off">
+    <button class="ctx-del-btn ctx-edit-save" id="ctxEditSave">save</button>
+  </div>
+  <div class="ctx-del-btns" id="ctxBtns">
+    <button class="ctx-del-btn ctx-del-edit" id="ctxDelEdit">edit</button>
     <button class="ctx-del-btn ctx-del-cancel" id="ctxDelCancel">cancel</button>
     <button class="ctx-del-btn ctx-del-confirm" id="ctxDelConfirm">delete</button>
   </div>
@@ -468,13 +480,17 @@ function getUserId() {
 const USER_ID = getUserId();
 
 // ============================================================
-// CONTEXT DELETE POPOVER
+// CONTEXT MENU POPOVER (edit + delete)
 // ============================================================
 let ctxDelCallback = null;
+let ctxEditCallback = null;
 const ctxEl = document.getElementById('ctxDel');
-function showCtxDel(x, y, title, onConfirm) {
+function showCtxDel(x, y, title, onEdit, onConfirm) {
   ctxDelCallback = onConfirm;
-  document.getElementById('ctxDelTitle').textContent = title;
+  ctxEditCallback = onEdit;
+  document.getElementById('ctxDelTitle').textContent = `"${title}"`;
+  document.getElementById('ctxEditRow').style.display = 'none';
+  document.getElementById('ctxBtns').style.display = 'flex';
   ctxEl.style.display = 'flex';
   requestAnimationFrame(() => {
     const w = ctxEl.offsetWidth, h = ctxEl.offsetHeight;
@@ -486,9 +502,31 @@ function showCtxDel(x, y, title, onConfirm) {
     ctxEl.style.left = left + 'px'; ctxEl.style.top = top + 'px';
   });
 }
-function hideCtxDel() { ctxEl.style.display = 'none'; ctxDelCallback = null; }
+function hideCtxDel() { ctxEl.style.display = 'none'; ctxDelCallback = null; ctxEditCallback = null; }
 document.getElementById('ctxDelCancel').addEventListener('click', hideCtxDel);
 document.getElementById('ctxDelConfirm').addEventListener('click', () => { if (ctxDelCallback) ctxDelCallback(); hideCtxDel(); });
+document.getElementById('ctxDelEdit').addEventListener('click', () => {
+  // Switch to edit mode
+  const titleEl = document.getElementById('ctxDelTitle');
+  const editRow = document.getElementById('ctxEditRow');
+  const btns = document.getElementById('ctxBtns');
+  const input = document.getElementById('ctxEditInput');
+  const rawTitle = titleEl.textContent.replace(/^"|"$/g, ''); // strip quotes
+  input.value = rawTitle;
+  btns.style.display = 'none';
+  editRow.style.display = 'flex';
+  titleEl.textContent = 'edit task';
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+});
+document.getElementById('ctxEditSave').addEventListener('click', () => {
+  const val = document.getElementById('ctxEditInput').value.trim();
+  if (val && ctxEditCallback) ctxEditCallback(val);
+  hideCtxDel();
+});
+document.getElementById('ctxEditInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { document.getElementById('ctxEditSave').click(); }
+  if (e.key === 'Escape') { hideCtxDel(); }
+});
 document.addEventListener('click', e => { if (!ctxEl.contains(e.target)) hideCtxDel(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCtxDel(); });
 
@@ -864,12 +902,22 @@ function makeTaskRow(task, isOverdue) {
   row.addEventListener('dragend', () => row.classList.remove('dragging'));
   row.addEventListener('contextmenu', e => {
     e.preventDefault(); e.stopPropagation();
-    showCtxDel(e.clientX, e.clientY, `delete "${task.title}"?`, async () => {
-      if (isOverdue) overdueTasks = overdueTasks.filter(t => t.id !== task.id);
-      else tasks = tasks.filter(t => t.id !== task.id);
-      await dbDeleteTask(task.id);
-      renderUI();
-    });
+    showCtxDel(e.clientX, e.clientY, task.title,
+      // onEdit
+      (newTitle) => {
+        task.title = newTitle;
+        const isInv = !task.day && inventory.includes(task);
+        dbUpsertTask(task, isInv);
+        renderUI();
+      },
+      // onDelete
+      async () => {
+        if (isOverdue) overdueTasks = overdueTasks.filter(t => t.id !== task.id);
+        else tasks = tasks.filter(t => t.id !== task.id);
+        dbDeleteTask(task.id);
+        renderUI();
+      }
+    );
   });
   const cb = document.createElement('div');
   cb.className = 'checkbox' + (task.done ? ` checked ${task.cat}` : '');
@@ -932,11 +980,10 @@ function renderInventory(listId, filterId) {
     row.addEventListener('dragend', () => row.classList.remove('dragging'));
     row.addEventListener('contextmenu', e => {
       e.preventDefault(); e.stopPropagation();
-      showCtxDel(e.clientX, e.clientY, `delete "${item.title}"?`, async () => {
-        inventory = inventory.filter(x => x.id !== item.id);
-        await dbDeleteTask(item.id);
-        renderUI();
-      });
+      showCtxDel(e.clientX, e.clientY, item.title,
+        (newTitle) => { item.title = newTitle; dbUpsertTask(item, true); renderUI(); },
+        () => { inventory = inventory.filter(x => x.id !== item.id); dbDeleteTask(item.id); renderUI(); }
+      );
     });
     // Build countdown badge for cycle items
     let cycleHtml = '';
